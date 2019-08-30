@@ -67,6 +67,10 @@ func isSeparator(line []byte) bool {
 	return true
 }
 
+func (b *metaParser) Trigger() []byte {
+	return []byte{'-'}
+}
+
 func (b *metaParser) Open(parent gast.Node, reader text.Reader, pc parser.Context) (gast.Node, parser.State) {
 	linenum, _ := reader.Position()
 	if linenum != 0 {
