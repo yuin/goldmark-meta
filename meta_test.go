@@ -2,12 +2,13 @@ package meta
 
 import (
 	"bytes"
+	"testing"
+
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/renderer"
 	"github.com/yuin/goldmark/util"
-	"testing"
 )
 
 func TestMeta(t *testing.T) {
@@ -141,5 +142,55 @@ Tags:
 <h1>Hello goldmark-meta</h1>
 ` {
 		t.Error("invalid error output")
+	}
+}
+
+func TestMetaTableWithBlankline(t *testing.T) {
+	markdown := goldmark.New(
+		goldmark.WithExtensions(
+			New(WithTable()),
+		),
+		goldmark.WithRendererOptions(
+			renderer.WithNodeRenderers(
+				util.Prioritized(extension.NewTableHTMLRenderer(), 500),
+			),
+		),
+	)
+	source := `---
+Title: goldmark-meta
+Summary: Add YAML metadata to the document
+
+# comments
+Tags:
+    - markdown
+    - goldmark
+---
+
+# Hello goldmark-meta
+`
+
+	var buf bytes.Buffer
+	if err := markdown.Convert([]byte(source), &buf); err != nil {
+		panic(err)
+	}
+	if buf.String() != `<table>
+<thead>
+<tr>
+<th>Title</th>
+<th>Summary</th>
+<th>Tags</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>goldmark-meta</td>
+<td>Add YAML metadata to the document</td>
+<td>[markdown goldmark]</td>
+</tr>
+</tbody>
+</table>
+<h1>Hello goldmark-meta</h1>
+` {
+		t.Error("invalid table output")
 	}
 }

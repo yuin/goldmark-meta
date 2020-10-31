@@ -7,6 +7,7 @@ package meta
 import (
 	"bytes"
 	"fmt"
+
 	"github.com/yuin/goldmark"
 	gast "github.com/yuin/goldmark/ast"
 	east "github.com/yuin/goldmark/extension/ast"
@@ -85,7 +86,7 @@ func (b *metaParser) Open(parent gast.Node, reader text.Reader, pc parser.Contex
 
 func (b *metaParser) Continue(node gast.Node, reader text.Reader, pc parser.Context) parser.State {
 	line, segment := reader.PeekLine()
-	if isSeparator(line) {
+	if isSeparator(line) && !util.IsBlank(line) {
 		reader.Advance(segment.Len())
 		return parser.Close
 	}
