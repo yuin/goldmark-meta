@@ -128,7 +128,8 @@ Tags:
 `
 
 	var buf bytes.Buffer
-	if err := markdown.Convert([]byte(source), &buf); err != nil {
+	context := parser.NewContext()
+	if err := markdown.Convert([]byte(source), &buf, parser.WithContext(context)); err != nil {
 		panic(err)
 	}
 	if buf.String() != `Title: goldmark-meta
@@ -142,6 +143,14 @@ Tags:
 <h1>Hello goldmark-meta</h1>
 ` {
 		t.Error("invalid error output")
+	}
+
+	v, err := TryGet(context)
+	if err == nil {
+		t.Error("error should not be nil")
+	}
+	if v != nil {
+		t.Error("data should be nil when there are errors")
 	}
 }
 
