@@ -1,4 +1,4 @@
-// package meta is a extension for the goldmark(http://github.com/yuin/goldmark).
+// Package meta is a extension for the goldmark(http://github.com/yuin/goldmark).
 //
 // This extension parses YAML metadata blocks and store metadata to a
 // parser.Context.
@@ -12,6 +12,7 @@ import (
 	gast "github.com/yuin/goldmark/ast"
 	east "github.com/yuin/goldmark/extension/ast"
 	"github.com/yuin/goldmark/parser"
+	"github.com/yuin/goldmark/renderer"
 	"github.com/yuin/goldmark/text"
 	"github.com/yuin/goldmark/util"
 
@@ -149,7 +150,10 @@ func (b *metaParser) Close(node gast.Node, reader text.Reader, pc parser.Context
 	pc.Set(contextKey, d)
 
 	if d.Error == nil {
-		node.Parent().RemoveChild(node.Parent(), node)
+		metadata := NewMetadata(d.Items, d.Error)
+		// Replace the TextBlock with a Metadata node
+		node.Parent().ReplaceChild(node.Parent(), node, metadata)
+		d.Node = metadata
 	}
 }
 
@@ -178,6 +182,8 @@ func (a *astTransformer) Transform(node *gast.Document, reader text.Reader, pc p
 		d.Node.AppendChild(d.Node, msg)
 		return
 	}
+	// Remove the Metadata node when transforming to a table.
+	d.Node.Parent().RemoveChild(d.Node.Parent(), d.Node)
 
 	meta := GetItems(pc)
 	if meta == nil {
@@ -244,5 +250,55 @@ func (e *meta) Extend(m goldmark.Markdown) {
 				util.Prioritized(defaultASTTransformer, 0),
 			),
 		)
+	} else {
+		// Default Metadata HTML renderer displays nothing.
+		m.Renderer().AddOptions(
+			renderer.WithNodeRenderers(
+				util.Prioritized(NewHTMLRenderer(), 500),
+			),
+		)
 	}
+}
+
+// Metadata struct represents Metadata of the Markdown text.
+type Metadata struct {
+	gast.BaseBlock
+	Items yaml.MapSlice
+	Error error
+}
+
+// KindMetadata is a NodeKind of the Metadata node.
+var KindMetadata = gast.NewNodeKind("Metadata")
+
+// Kind implements Node.Kind.
+func (n *Metadata) Kind() gast.NodeKind {
+	return KindMetadata
+}
+
+// Dump implements Node.Dump.
+func (n *Metadata) Dump(source []byte, level int) {
+	gast.DumpHelper(n, source, level, nil, nil)
+}
+
+// NewMetadata returns a new Metadata node.
+func NewMetadata(items yaml.MapSlice, err error) *Metadata {
+	return &Metadata{Items: items, Error: err}
+}
+
+// HTMLRenderer struct is a renderer.NodeRenderer implementation for the extension.
+type HTMLRenderer struct{}
+
+// NewHTMLRenderer builds a new HTMLRenderer.
+func NewHTMLRenderer() renderer.NodeRenderer {
+	return &HTMLRenderer{}
+}
+
+// RegisterFuncs implements NodeRenderer.RegisterFuncs.
+func (r *HTMLRenderer) RegisterFuncs(reg renderer.NodeRendererFuncRegisterer) {
+	reg.Register(KindMetadata, r.render)
+}
+
+func (r *HTMLRenderer) render(w util.BufWriter, source []byte, node gast.Node, entering bool) (gast.WalkStatus, error) {
+	// Metadata is hidden by default in HTML.
+	return gast.WalkContinue, nil
 }
