@@ -18,14 +18,9 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type MapSlice []struct {
-	Key   string
-	Value interface{}
-}
-
 type data struct {
 	Map   map[string]interface{}
-	Items MapSlice
+	Items *yaml.Node
 	Error error
 	Node  gast.Node
 }
@@ -58,7 +53,7 @@ func TryGet(pc parser.Context) (map[string]interface{}, error) {
 
 // GetItems returns a YAML metadata.
 // GetItems preserves defined key order.
-func GetItems(pc parser.Context) MapSlice {
+func GetItems(pc parser.Context) *yaml.Node {
 	v := pc.Get(contextKey)
 	if v == nil {
 		return nil
@@ -70,7 +65,7 @@ func GetItems(pc parser.Context) MapSlice {
 // TryGetItems returns a YAML metadata.
 // TryGetItems preserves defined key order.
 // If there are YAML parsing errors, then nil and erro are returned.
-func TryGetItems(pc parser.Context) (MapSlice, error) {
+func TryGetItems(pc parser.Context) (*yaml.Node, error) {
 	dtmp := pc.Get(contextKey)
 	if dtmp == nil {
 		return nil, nil
@@ -144,11 +139,11 @@ func (b *metaParser) Close(node gast.Node, reader text.Reader, pc parser.Context
 		d.Map = meta
 	}
 
-	metaMapSlice := MapSlice{}
-	if err := yaml.Unmarshal(buf.Bytes(), &metaMapSlice); err != nil {
+	metaItems := &yaml.Node{}
+	if err := yaml.Unmarshal(buf.Bytes(), metaItems); err != nil {
 		d.Error = err
 	} else {
-		d.Items = metaMapSlice
+		d.Items = metaItems
 	}
 
 	pc.Set(contextKey, d)
@@ -188,27 +183,69 @@ func (a *astTransformer) Transform(node *gast.Document, reader text.Reader, pc p
 	if meta == nil {
 		return
 	}
+	if meta.Kind == yaml.DocumentNode {
+		meta = meta.Content[0]
+	}
+	if meta.Kind != yaml.MappingNode {
+		// only mapping node is supported as root
+		return
+	}
+
 	table := east.NewTable()
 	alignments := []east.Alignment{}
-	for range meta {
+	for i := 1; i == len(meta.Content)%2; i++ {
 		alignments = append(alignments, east.AlignNone)
 	}
 	row := east.NewTableRow(alignments)
-	for _, item := range meta {
+	valueNodes := make([]*yaml.Node, 0, len(meta.Content)/2)
+	for i := 0; i < len(meta.Content); i = i + 2 {
+		keyNode := meta.Content[i]
+		valueNodes = append(valueNodes, meta.Content[i+1])
+
 		cell := east.NewTableCell()
-		cell.AppendChild(cell, gast.NewString([]byte(fmt.Sprintf("%v", item.Key))))
+		cell.AppendChild(cell, gast.NewString([]byte(valueNodeToString(keyNode))))
 		row.AppendChild(row, cell)
 	}
 	table.AppendChild(table, east.NewTableHeader(row))
 
 	row = east.NewTableRow(alignments)
-	for _, item := range meta {
+	for _, item := range valueNodes {
 		cell := east.NewTableCell()
-		cell.AppendChild(cell, gast.NewString([]byte(fmt.Sprintf("%v", item.Value))))
+		cell.AppendChild(cell, gast.NewString([]byte(valueNodeToString(item))))
 		row.AppendChild(row, cell)
 	}
 	table.AppendChild(table, row)
 	node.InsertBefore(node, node.FirstChild(), table)
+}
+
+func valueNodeToString(node *yaml.Node) string {
+	if node == nil {
+		return ""
+	}
+	switch node.Kind {
+	case yaml.SequenceNode:
+		val := make([]string, len(node.Content))
+		for i := range node.Content {
+			val[i] = valueNodeToString(node.Content[i])
+		}
+		return fmt.Sprintf("%v", val)
+
+	case yaml.MappingNode:
+		if (len(node.Content) % 2) != 0 {
+			return "<broken mapping node>"
+		}
+		val := make(map[string]string, len(node.Content)%2)
+		for i := len(node.Content); i > 1; i = i - 2 {
+			k := valueNodeToString(node.Content[i-2])
+			val[fmt.Sprint(k)] = valueNodeToString(node.Content[i-1])
+		}
+		return fmt.Sprintf("%v", val)
+
+	case yaml.ScalarNode:
+		return node.Value
+	}
+
+	return fmt.Sprintf("<do not support yaml node kind '%v'>", node.Kind)
 }
 
 // Option is a functional option type for this extension.

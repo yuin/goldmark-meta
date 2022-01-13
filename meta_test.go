@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/parser"
@@ -86,7 +88,7 @@ Tags:
 	if err := markdown.Convert([]byte(source), &buf); err != nil {
 		panic(err)
 	}
-	if buf.String() != `<table>
+	expect := `<table>
 <thead>
 <tr>
 <th>Title</th>
@@ -103,9 +105,8 @@ Tags:
 </tbody>
 </table>
 <h1>Hello goldmark-meta</h1>
-` {
-		t.Error("invalid table output")
-	}
+`
+	assert.EqualValues(t, expect, buf.String(), "invalid table output")
 }
 
 func TestMetaError(t *testing.T) {
