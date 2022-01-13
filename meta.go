@@ -15,12 +15,17 @@ import (
 	"github.com/yuin/goldmark/text"
 	"github.com/yuin/goldmark/util"
 
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
+
+type MapSlice []struct {
+	Key   string
+	Value interface{}
+}
 
 type data struct {
 	Map   map[string]interface{}
-	Items yaml.MapSlice
+	Items MapSlice
 	Error error
 	Node  gast.Node
 }
@@ -53,7 +58,7 @@ func TryGet(pc parser.Context) (map[string]interface{}, error) {
 
 // GetItems returns a YAML metadata.
 // GetItems preserves defined key order.
-func GetItems(pc parser.Context) yaml.MapSlice {
+func GetItems(pc parser.Context) MapSlice {
 	v := pc.Get(contextKey)
 	if v == nil {
 		return nil
@@ -65,7 +70,7 @@ func GetItems(pc parser.Context) yaml.MapSlice {
 // TryGetItems returns a YAML metadata.
 // TryGetItems preserves defined key order.
 // If there are YAML parsing errors, then nil and erro are returned.
-func TryGetItems(pc parser.Context) (yaml.MapSlice, error) {
+func TryGetItems(pc parser.Context) (MapSlice, error) {
 	dtmp := pc.Get(contextKey)
 	if dtmp == nil {
 		return nil, nil
@@ -139,7 +144,7 @@ func (b *metaParser) Close(node gast.Node, reader text.Reader, pc parser.Context
 		d.Map = meta
 	}
 
-	metaMapSlice := yaml.MapSlice{}
+	metaMapSlice := MapSlice{}
 	if err := yaml.Unmarshal(buf.Bytes(), &metaMapSlice); err != nil {
 		d.Error = err
 	} else {
