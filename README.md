@@ -88,6 +88,41 @@ Tags:
 }
 ```
 
+Or `WithStoresInDocument` option:
+
+```go
+import (
+    "bytes"
+    "fmt"
+    "github.com/yuin/goldmark"
+    "github.com/yuin/goldmark/extension"
+    "github.com/yuin/goldmark/parser"
+    "github.com/yuin/goldmark-meta"
+)
+
+func main() {
+	markdown := goldmark.New(
+		goldmark.WithExtensions(
+			meta.New(
+				meta.WithStoresInDocument(),
+			),
+		),
+	)
+	source := `---
+Title: goldmark-meta
+Summary: Add YAML metadata to the document
+Tags:
+    - markdown
+    - goldmark
+---
+`
+
+	document := markdown.Parser().Parse(text.NewReader([]byte(source)))
+	metaData := document.OwnerDocument().Meta()
+	title := metaData["Title"]
+    fmt.Print(title)
+```
+
 ### Render the metadata as a table
 
 You need to add `extension.TableHTMLRenderer` or the `Table` extension to

@@ -27,6 +27,11 @@ type data struct {
 
 var contextKey = parser.NewContextKey()
 
+// Option interface sets options for this extension.
+type Option interface {
+	metaOption()
+}
+
 // Get returns a YAML metadata.
 func Get(pc parser.Context) map[string]interface{} {
 	v := pc.Get(contextKey)
@@ -80,11 +85,11 @@ func TryGetItems(pc parser.Context) (yaml.MapSlice, error) {
 type metaParser struct {
 }
 
-var defaultMetaParser = &metaParser{}
+var defaultParser = &metaParser{}
 
 // NewParser returns a BlockParser that can parse YAML metadata blocks.
 func NewParser() parser.BlockParser {
-	return defaultMetaParser
+	return defaultParser
 }
 
 func isSeparator(line []byte) bool {
@@ -162,9 +167,74 @@ func (b *metaParser) CanAcceptIndentedLine() bool {
 }
 
 type astTransformer struct {
+	transformerConfig
 }
 
-var defaultASTTransformer = &astTransformer{}
+type transformerConfig struct {
+	// Renders metadata as an html table.
+	Table bool
+
+	// Stores metadata in ast.Document.Meta().
+	StoresInDocument bool
+}
+
+type transformerOption interface {
+	Option
+
+	// SetMetaOption sets options for the metadata parser.
+	SetMetaOption(*transformerConfig)
+}
+
+var _ transformerOption = &withTable{}
+
+type withTable struct {
+	value bool
+}
+
+func (o *withTable) metaOption() {}
+
+func (o *withTable) SetMetaOption(m *transformerConfig) {
+	m.Table = o.value
+}
+
+// WithTable is a functional option that renders a YAML metadata as a table.
+func WithTable() Option {
+	return &withTable{
+		value: true,
+	}
+}
+
+var _ transformerOption = &withStoresInDocument{}
+
+type withStoresInDocument struct {
+	value bool
+}
+
+func (o *withStoresInDocument) metaOption() {}
+
+func (o *withStoresInDocument) SetMetaOption(c *transformerConfig) {
+	c.StoresInDocument = o.value
+}
+
+// WithStoresInDocument is a functional option that parser will store YAML meta in ast.Document.Meta().
+func WithStoresInDocument() Option {
+	return &withStoresInDocument{
+		value: true,
+	}
+}
+
+func newTransformer(opts ...transformerOption) parser.ASTTransformer {
+	p := &astTransformer{
+		transformerConfig: transformerConfig{
+			Table:            false,
+			StoresInDocument: false,
+		},
+	}
+	for _, o := range opts {
+		o.SetMetaOption(&p.transformerConfig)
+	}
+	return p
+}
 
 func (a *astTransformer) Transform(node *gast.Document, reader text.Reader, pc parser.Context) {
 	dtmp := pc.Get(contextKey)
@@ -179,45 +249,43 @@ func (a *astTransformer) Transform(node *gast.Document, reader text.Reader, pc p
 		return
 	}
 
-	meta := GetItems(pc)
-	if meta == nil {
-		return
-	}
-	table := east.NewTable()
-	alignments := []east.Alignment{}
-	for range meta {
-		alignments = append(alignments, east.AlignNone)
-	}
-	row := east.NewTableRow(alignments)
-	for _, item := range meta {
-		cell := east.NewTableCell()
-		cell.AppendChild(cell, gast.NewString([]byte(fmt.Sprintf("%v", item.Key))))
-		row.AppendChild(row, cell)
-	}
-	table.AppendChild(table, east.NewTableHeader(row))
+	if a.Table {
+		meta := GetItems(pc)
+		if meta == nil {
+			return
+		}
+		table := east.NewTable()
+		alignments := []east.Alignment{}
+		for range meta {
+			alignments = append(alignments, east.AlignNone)
+		}
+		row := east.NewTableRow(alignments)
+		for _, item := range meta {
+			cell := east.NewTableCell()
+			cell.AppendChild(cell, gast.NewString([]byte(fmt.Sprintf("%v", item.Key))))
+			row.AppendChild(row, cell)
+		}
+		table.AppendChild(table, east.NewTableHeader(row))
 
-	row = east.NewTableRow(alignments)
-	for _, item := range meta {
-		cell := east.NewTableCell()
-		cell.AppendChild(cell, gast.NewString([]byte(fmt.Sprintf("%v", item.Value))))
-		row.AppendChild(row, cell)
+		row = east.NewTableRow(alignments)
+		for _, item := range meta {
+			cell := east.NewTableCell()
+			cell.AppendChild(cell, gast.NewString([]byte(fmt.Sprintf("%v", item.Value))))
+			row.AppendChild(row, cell)
+		}
+		table.AppendChild(table, row)
+		node.InsertBefore(node, node.FirstChild(), table)
 	}
-	table.AppendChild(table, row)
-	node.InsertBefore(node, node.FirstChild(), table)
-}
 
-// Option is a functional option type for this extension.
-type Option func(*meta)
-
-// WithTable is a functional option that renders a YAML metadata as a table.
-func WithTable() Option {
-	return func(m *meta) {
-		m.Table = true
+	if a.StoresInDocument {
+		for k, v := range d.Map {
+			node.AddMeta(k, v)
+		}
 	}
 }
 
 type meta struct {
-	Table bool
+	options []Option
 }
 
 // Meta is a extension for the goldmark.
@@ -225,24 +293,28 @@ var Meta = &meta{}
 
 // New returns a new Meta extension.
 func New(opts ...Option) goldmark.Extender {
-	e := &meta{}
-	for _, opt := range opts {
-		opt(e)
+	e := &meta{
+		options: opts,
 	}
 	return e
 }
 
+// Extend implements goldmark.Extender.
 func (e *meta) Extend(m goldmark.Markdown) {
+	topts := []transformerOption{}
+	for _, opt := range e.options {
+		if topt, ok := opt.(transformerOption); ok {
+			topts = append(topts, topt)
+		}
+	}
 	m.Parser().AddOptions(
 		parser.WithBlockParsers(
 			util.Prioritized(NewParser(), 0),
 		),
 	)
-	if e.Table {
-		m.Parser().AddOptions(
-			parser.WithASTTransformers(
-				util.Prioritized(defaultASTTransformer, 0),
-			),
-		)
-	}
+	m.Parser().AddOptions(
+		parser.WithASTTransformers(
+			util.Prioritized(newTransformer(topts...), 0),
+		),
+	)
 }

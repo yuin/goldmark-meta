@@ -8,6 +8,7 @@ import (
 	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/renderer"
+	"github.com/yuin/goldmark/text"
 	"github.com/yuin/goldmark/util"
 )
 
@@ -201,5 +202,47 @@ Tags:
 <h1>Hello goldmark-meta</h1>
 ` {
 		t.Error("invalid table output")
+	}
+}
+
+func TestMetaStoreInDocument(t *testing.T) {
+	markdown := goldmark.New(
+		goldmark.WithExtensions(
+			New(
+				WithStoresInDocument(),
+			),
+		),
+	)
+	source := `---
+Title: goldmark-meta
+Summary: Add YAML metadata to the document
+Tags:
+    - markdown
+    - goldmark
+---
+`
+
+	document := markdown.Parser().Parse(text.NewReader([]byte(source)))
+	metaData := document.OwnerDocument().Meta()
+	title := metaData["Title"]
+	s, ok := title.(string)
+	if !ok {
+		t.Error("Title not found in meta data or is not a string")
+	}
+	if s != "goldmark-meta" {
+		t.Errorf("Title must be %s, but got %v", "goldmark-meta", s)
+	}
+	tags, ok := metaData["Tags"].([]interface{})
+	if !ok {
+		t.Error("Tags not found in meta data or is not a slice")
+	}
+	if len(tags) != 2 {
+		t.Error("Tags must be a slice that has 2 elements")
+	}
+	if tags[0] != "markdown" {
+		t.Errorf("Tag#1 must be 'markdown', but got %s", tags[0])
+	}
+	if tags[1] != "goldmark" {
+		t.Errorf("Tag#2 must be 'goldmark', but got %s", tags[1])
 	}
 }
