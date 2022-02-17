@@ -97,6 +97,7 @@ import (
     "github.com/yuin/goldmark"
     "github.com/yuin/goldmark/extension"
     "github.com/yuin/goldmark/parser"
+    "github.com/yuin/goldmark/text"
     "github.com/yuin/goldmark-meta"
 )
 
@@ -120,7 +121,8 @@ Tags:
 	document := markdown.Parser().Parse(text.NewReader([]byte(source)))
 	metaData := document.OwnerDocument().Meta()
 	title := metaData["Title"]
-    fmt.Print(title)
+	fmt.Print(title)
+}
 ```
 
 ### Render the metadata as a table
