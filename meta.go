@@ -93,23 +93,23 @@ func NewParser() parser.BlockParser {
 }
 
 func isStartSeparator(line []byte) bool {
-	line = util.TrimRightSpace(util.TrimLeftSpace(line))
+	line = util.TrimRightSpace(line)
 	for i := 0; i < len(line); i++ {
 		if line[i] != '-' {
 			return false
 		}
 	}
-	return true
+	return len(line) >= 3
 }
 
 func isEndSeparator(line []byte) bool {
-	line = util.TrimRightSpace(util.TrimLeftSpace(line))
+	line = util.TrimRightSpace(line)
 	for i := 0; i < len(line); i++ {
 		if line[i] != '-' && line[i] != '.' {
 			return false
 		}
 	}
-	return true
+	return len(line) >= 3
 }
 
 func (b *metaParser) Trigger() []byte {
