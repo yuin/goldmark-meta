@@ -92,10 +92,20 @@ func NewParser() parser.BlockParser {
 	return defaultParser
 }
 
-func isSeparator(line []byte) bool {
+func isStartSeparator(line []byte) bool {
 	line = util.TrimRightSpace(util.TrimLeftSpace(line))
 	for i := 0; i < len(line); i++ {
 		if line[i] != '-' {
+			return false
+		}
+	}
+	return true
+}
+
+func isEndSeparator(line []byte) bool {
+	line = util.TrimRightSpace(util.TrimLeftSpace(line))
+	for i := 0; i < len(line); i++ {
+		if line[i] != '-' && line[i] != '.' {
 			return false
 		}
 	}
@@ -112,7 +122,7 @@ func (b *metaParser) Open(parent gast.Node, reader text.Reader, pc parser.Contex
 		return nil, parser.NoChildren
 	}
 	line, _ := reader.PeekLine()
-	if isSeparator(line) {
+	if isStartSeparator(line) {
 		return gast.NewTextBlock(), parser.NoChildren
 	}
 	return nil, parser.NoChildren
@@ -120,7 +130,7 @@ func (b *metaParser) Open(parent gast.Node, reader text.Reader, pc parser.Contex
 
 func (b *metaParser) Continue(node gast.Node, reader text.Reader, pc parser.Context) parser.State {
 	line, segment := reader.PeekLine()
-	if isSeparator(line) && !util.IsBlank(line) {
+	if isEndSeparator(line) && !util.IsBlank(line) {
 		reader.Advance(segment.Len())
 		return parser.Close
 	}
