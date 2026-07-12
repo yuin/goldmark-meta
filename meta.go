@@ -1,95 +1,72 @@
-// package meta is a extension for the goldmark(http://github.com/yuin/goldmark).
+// Package meta is an extension for goldmark.
 //
-// This extension parses YAML metadata blocks and store metadata to a
-// parser.Context.
+// This extension parses YAML metadata blocks and stores metadata to a
+// document.
 package meta
 
 import (
 	"bytes"
 	"fmt"
+	"io"
 
-	"github.com/yuin/goldmark"
-	gast "github.com/yuin/goldmark/ast"
-	east "github.com/yuin/goldmark/extension/ast"
-	"github.com/yuin/goldmark/parser"
-	"github.com/yuin/goldmark/text"
-	"github.com/yuin/goldmark/util"
+	"github.com/yuin/goldmark/v2/ast"
+	"github.com/yuin/goldmark/v2/parser"
+	"github.com/yuin/goldmark/v2/renderer"
+	"github.com/yuin/goldmark/v2/renderer/html"
+	"github.com/yuin/goldmark/v2/text"
+	"github.com/yuin/goldmark/v2/util"
 
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v4"
 )
 
+// An MetaBlock struct represents a meta block node in the AST.
+type MetaBlock struct {
+	ast.BaseBlock
+
+	// Value holds the raw content of this block.
+	Value text.Lines
+
+	data data
+}
+
+// Dump implements Node.Dump.
+func (n *MetaBlock) Dump(source []byte) *ast.NodeDump {
+	return ast.NewNodeDump(n, map[string]any{
+		"Value": string(n.Value.Bytes(source)),
+	})
+}
+
+// KindMetaBlock is a NodeKind of the MetaBlock node.
+var KindMetaBlock = ast.NewNodeKind("MetaBlock")
+
+// Kind implements Node.Kind.
+func (n *MetaBlock) Kind() ast.NodeKind {
+	return KindMetaBlock
+}
+
+// NewMetaBlock returns a new MetaBlock node.
+func NewMetaBlock() *MetaBlock {
+	n := &MetaBlock{}
+	n.Init(n)
+	return n
+}
+
 type data struct {
-	Map   map[string]interface{}
-	Items yaml.MapSlice
+	Map   map[string]any
+	Items yaml.Node
 	Error error
-	Node  gast.Node
+	Node  ast.Node
 }
 
 var contextKey = parser.NewContextKey()
 
-// Option interface sets options for this extension.
-type Option interface {
-	metaOption()
-}
+type blockParser struct{}
 
-// Get returns a YAML metadata.
-func Get(pc parser.Context) map[string]interface{} {
-	v := pc.Get(contextKey)
-	if v == nil {
-		return nil
-	}
-	d := v.(*data)
-	return d.Map
-}
-
-// TryGet tries to get a YAML metadata.
-// If there are YAML parsing errors, then nil and error are returned
-func TryGet(pc parser.Context) (map[string]interface{}, error) {
-	dtmp := pc.Get(contextKey)
-	if dtmp == nil {
-		return nil, nil
-	}
-	d := dtmp.(*data)
-	if d.Error != nil {
-		return nil, d.Error
-	}
-	return d.Map, nil
-}
-
-// GetItems returns a YAML metadata.
-// GetItems preserves defined key order.
-func GetItems(pc parser.Context) yaml.MapSlice {
-	v := pc.Get(contextKey)
-	if v == nil {
-		return nil
-	}
-	d := v.(*data)
-	return d.Items
-}
-
-// TryGetItems returns a YAML metadata.
-// TryGetItems preserves defined key order.
-// If there are YAML parsing errors, then nil and erro are returned.
-func TryGetItems(pc parser.Context) (yaml.MapSlice, error) {
-	dtmp := pc.Get(contextKey)
-	if dtmp == nil {
-		return nil, nil
-	}
-	d := dtmp.(*data)
-	if d.Error != nil {
-		return nil, d.Error
-	}
-	return d.Items, nil
-}
-
-type metaParser struct {
-}
-
-var defaultParser = &metaParser{}
+var defaultBlockParser = &blockParser{}
 
 // NewParser returns a BlockParser that can parse YAML metadata blocks.
 func NewParser() parser.BlockParser {
-	return defaultParser
+	return defaultBlockParser
 }
 
 func isSeparator(line []byte) bool {
@@ -102,219 +79,221 @@ func isSeparator(line []byte) bool {
 	return true
 }
 
-func (b *metaParser) Trigger() []byte {
+func (b *blockParser) Trigger() []byte {
 	return []byte{'-'}
 }
 
-func (b *metaParser) Open(parent gast.Node, reader text.Reader, pc parser.Context) (gast.Node, parser.State) {
+func (b *blockParser) Open(parent ast.Node, reader text.Reader, pc parser.Context) (ast.Node, parser.State) {
 	linenum, _ := reader.Position()
 	if linenum != 0 {
 		return nil, parser.NoChildren
 	}
 	line, _ := reader.PeekLine()
 	if isSeparator(line) {
-		return gast.NewTextBlock(), parser.NoChildren
+		reader.AdvanceToEOL()
+		node := NewMetaBlock()
+		pc.Set(contextKey, node)
+
+		return node, parser.NoChildren
 	}
 	return nil, parser.NoChildren
 }
 
-func (b *metaParser) Continue(node gast.Node, reader text.Reader, pc parser.Context) parser.State {
+func (b *blockParser) Continue(node ast.Node, reader text.Reader, pc parser.Context) parser.State {
 	line, segment := reader.PeekLine()
 	if isSeparator(line) && !util.IsBlank(line) {
-		reader.Advance(segment.Len())
+		reader.AdvanceToEOL()
 		return parser.Close
 	}
-	node.Lines().Append(segment)
+	node.(*MetaBlock).Value.AppendSegment(segment)
+	reader.AdvanceToEOL()
 	return parser.Continue | parser.NoChildren
 }
 
-func (b *metaParser) Close(node gast.Node, reader text.Reader, pc parser.Context) {
-	lines := node.Lines()
+func (b *blockParser) Close(node ast.Node, reader text.Reader, pc parser.Context) {
+	d := &node.(*MetaBlock).data
+	lines := node.(*MetaBlock).Value.Segments()
 	var buf bytes.Buffer
-	for i := 0; i < lines.Len(); i++ {
-		segment := lines.At(i)
-		buf.Write(segment.Value(reader.Source()))
+	for _, segment := range lines {
+		buf.Write(segment.Bytes(reader.Source()))
 	}
-	d := &data{}
-	d.Node = node
-	meta := map[string]interface{}{}
+	meta := map[string]any{}
 	if err := yaml.Unmarshal(buf.Bytes(), &meta); err != nil {
 		d.Error = err
 	} else {
 		d.Map = meta
-	}
-
-	metaMapSlice := yaml.MapSlice{}
-	if err := yaml.Unmarshal(buf.Bytes(), &metaMapSlice); err != nil {
-		d.Error = err
-	} else {
-		d.Items = metaMapSlice
-	}
-
-	pc.Set(contextKey, d)
-
-	if d.Error == nil {
-		node.Parent().RemoveChild(node.Parent(), node)
-	}
-}
-
-func (b *metaParser) CanInterruptParagraph() bool {
-	return false
-}
-
-func (b *metaParser) CanAcceptIndentedLine() bool {
-	return false
-}
-
-type astTransformer struct {
-	transformerConfig
-}
-
-type transformerConfig struct {
-	// Renders metadata as an html table.
-	Table bool
-
-	// Stores metadata in ast.Document.Meta().
-	StoresInDocument bool
-}
-
-type transformerOption interface {
-	Option
-
-	// SetMetaOption sets options for the metadata parser.
-	SetMetaOption(*transformerConfig)
-}
-
-var _ transformerOption = &withTable{}
-
-type withTable struct {
-	value bool
-}
-
-func (o *withTable) metaOption() {}
-
-func (o *withTable) SetMetaOption(m *transformerConfig) {
-	m.Table = o.value
-}
-
-// WithTable is a functional option that renders a YAML metadata as a table.
-func WithTable() Option {
-	return &withTable{
-		value: true,
-	}
-}
-
-var _ transformerOption = &withStoresInDocument{}
-
-type withStoresInDocument struct {
-	value bool
-}
-
-func (o *withStoresInDocument) metaOption() {}
-
-func (o *withStoresInDocument) SetMetaOption(c *transformerConfig) {
-	c.StoresInDocument = o.value
-}
-
-// WithStoresInDocument is a functional option that parser will store YAML meta in ast.Document.Meta().
-func WithStoresInDocument() Option {
-	return &withStoresInDocument{
-		value: true,
-	}
-}
-
-func newTransformer(opts ...transformerOption) parser.ASTTransformer {
-	p := &astTransformer{
-		transformerConfig: transformerConfig{
-			Table:            false,
-			StoresInDocument: false,
-		},
-	}
-	for _, o := range opts {
-		o.SetMetaOption(&p.transformerConfig)
-	}
-	return p
-}
-
-func (a *astTransformer) Transform(node *gast.Document, reader text.Reader, pc parser.Context) {
-	dtmp := pc.Get(contextKey)
-	if dtmp == nil {
-		return
-	}
-	d := dtmp.(*data)
-	if d.Error != nil {
-		msg := gast.NewString([]byte(fmt.Sprintf("<!-- %s -->", d.Error)))
-		msg.SetCode(true)
-		d.Node.AppendChild(d.Node, msg)
-		return
-	}
-
-	if a.Table {
-		meta := GetItems(pc)
-		if meta == nil {
-			return
-		}
-		table := east.NewTable()
-		alignments := []east.Alignment{}
-		for range meta {
-			alignments = append(alignments, east.AlignNone)
-		}
-		row := east.NewTableRow(alignments)
-		for _, item := range meta {
-			cell := east.NewTableCell()
-			cell.AppendChild(cell, gast.NewString([]byte(fmt.Sprintf("%v", item.Key))))
-			row.AppendChild(row, cell)
-		}
-		table.AppendChild(table, east.NewTableHeader(row))
-
-		row = east.NewTableRow(alignments)
-		for _, item := range meta {
-			cell := east.NewTableCell()
-			cell.AppendChild(cell, gast.NewString([]byte(fmt.Sprintf("%v", item.Value))))
-			row.AppendChild(row, cell)
-		}
-		table.AppendChild(table, row)
-		node.InsertBefore(node, node.FirstChild(), table)
-	}
-
-	if a.StoresInDocument {
 		for k, v := range d.Map {
-			node.AddMeta(k, v)
+			node.OwnerDocument().AddMeta(k, v)
+		}
+		if err := yaml.Unmarshal(buf.Bytes(), &d.Items); err != nil {
+			d.Error = err
 		}
 	}
+
 }
 
-type meta struct {
-	options []Option
+func (b *blockParser) CanInterruptParagraph() bool {
+	return false
 }
 
-// Meta is a extension for the goldmark.
-var Meta = &meta{}
+func (b *blockParser) CanAcceptIndentedLine() bool {
+	return false
+}
 
-// New returns a new Meta extension.
-func New(opts ...Option) goldmark.Extender {
-	e := &meta{
-		options: opts,
+type parserExt struct{}
+
+type htmlRendererConfig struct {
+	Table *tableConfig
+}
+
+// HTMLRendererOption configures the HTML renderer extension.
+type HTMLRendererOption func(*htmlRendererConfig)
+
+// TableLayout is a type for specifying the layout of the table rendering.
+type TableLayout int
+
+const (
+	// TableLayoutColumns specifies that the table should be rendered in a column layout.
+	TableLayoutColumns TableLayout = iota
+
+	// TableLayoutRows specifies that the table should be rendered in a row layout.
+	TableLayoutRows
+)
+
+type tableConfig struct {
+	Layout TableLayout
+}
+
+// TableOption configures the table rendering options.
+type TableOption func(*tableConfig)
+
+// WithLayout sets the layout of the table rendering.
+func WithLayout(direction TableLayout) TableOption {
+	return func(c *tableConfig) {
+		c.Layout = direction
 	}
-	return e
 }
 
-// Extend implements goldmark.Extender.
-func (e *meta) Extend(m goldmark.Markdown) {
-	topts := []transformerOption{}
-	for _, opt := range e.options {
-		if topt, ok := opt.(transformerOption); ok {
-			topts = append(topts, topt)
+// WithTable renders parsed metadata as an HTML table before the document body.
+func WithTable(opts ...TableOption) HTMLRendererOption {
+	return func(c *htmlRendererConfig) {
+		cfg := &tableConfig{
+			Layout: TableLayoutColumns,
 		}
+		for _, opt := range opts {
+			opt(cfg)
+		}
+		c.Table = cfg
 	}
-	m.Parser().AddOptions(
+}
+
+type metaHTMLRenderer struct {
+	config htmlRendererConfig
+	writer html.Writer
+}
+
+// Parser is a parser extension for goldmark.
+var Parser = &parserExt{}
+
+// HTMLRenderer is the default HTML renderer extension for metadata blocks.
+var HTMLRenderer = NewHTMLRenderer()
+
+// NewHTMLRenderer returns a new HTML renderer extension.
+func NewHTMLRenderer(opts ...HTMLRendererOption) html.Extension {
+	cfg := htmlRendererConfig{}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+	return &metaHTMLRenderer{config: cfg}
+}
+
+func (e *parserExt) ParserOptions(_ *parser.Config) []parser.Option {
+	return []parser.Option{
 		parser.WithBlockParsers(
 			util.Prioritized(NewParser(), 0),
 		),
-	)
-	m.Parser().AddOptions(
-		parser.WithASTTransformers(
-			util.Prioritized(newTransformer(topts...), 0),
-		),
-	)
+	}
+}
+
+func (r *metaHTMLRenderer) RendererOptions(cfg *html.Config) []html.Option {
+	var opts []html.Option
+	r.writer = cfg.Writer()
+	opts = append(opts, html.WithNodeRenderer(KindMetaBlock, html.NodeRendererFunc(r.renderMetaBlock)))
+	return opts
+}
+
+func (r *metaHTMLRenderer) renderMetaBlock(writer io.Writer, source []byte, n ast.Node, entering bool, rc renderer.Context) (ast.WalkStatus, error) {
+	if entering {
+		w := writer.(util.BufWriter)
+		d := &n.(*MetaBlock).data
+		if d.Error != nil {
+			_, _ = fmt.Fprintf(w, "<!-- %v -->\n", d.Error)
+			return ast.WalkSkipChildren, nil
+		}
+
+		if r.config.Table != nil {
+			var keys []string
+			mapping := d.Items.Content[0]
+			for i := 0; i < len(mapping.Content); i += 2 {
+				keys = append(keys, mapping.Content[i].Value)
+			}
+			switch r.config.Table.Layout {
+			case TableLayoutColumns:
+				_, _ = w.WriteString("<table>\n<thead>\n<tr>\n")
+				for _, key := range keys {
+					_, _ = w.WriteString("<th>")
+					r.writer.WriteText(w, fmt.Append(nil, key))
+					_, _ = w.WriteString("</th>\n")
+				}
+				_, _ = w.WriteString("</tr>\n</thead>\n<tbody>\n<tr>\n")
+				for _, key := range keys {
+					_, _ = w.WriteString("<td>")
+					r.writer.WriteHTML(w, []byte(valueToHTML(d.Map[key])))
+					_, _ = w.WriteString("</td>\n")
+				}
+				_, _ = w.WriteString("</tr>\n</tbody>\n</table>\n")
+			case TableLayoutRows:
+				_, _ = w.WriteString("<table>\n<tbody>\n")
+				for _, key := range keys {
+					_, _ = w.WriteString("<tr>\n<td>")
+					r.writer.WriteText(w, fmt.Append(nil, key))
+					_, _ = w.WriteString("</td>\n<td>")
+					r.writer.WriteHTML(w, []byte(valueToHTML(d.Map[key])))
+					_, _ = w.WriteString("</td>\n</tr>\n")
+				}
+				_, _ = w.WriteString("</tbody>\n</table>\n")
+			}
+		}
+	}
+	return ast.WalkSkipChildren, nil
+}
+
+func valueToHTML(v any) []byte {
+	switch v := v.(type) {
+	case []any:
+		var buf bytes.Buffer
+		buf.WriteString("<ul>")
+		for _, item := range v {
+			buf.WriteString("<li>")
+			buf.Write(valueToHTML(item))
+			buf.WriteString("</li>")
+		}
+		buf.WriteString("</ul>")
+		return buf.Bytes()
+	case map[string]any:
+		var buf bytes.Buffer
+		buf.WriteString("<ul>")
+		for k, v := range v {
+			buf.WriteString("<li>")
+			buf.WriteString(k)
+			buf.WriteString(": ")
+			buf.Write(valueToHTML(v))
+			buf.WriteString("</li>")
+		}
+		buf.WriteString("</ul>")
+		return buf.Bytes()
+	default:
+		return util.EscapeHTML(fmt.Append(nil, v))
+	}
+
 }

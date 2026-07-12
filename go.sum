@@ -1,6 +1,6 @@
-github.com/yuin/goldmark v1.4.6 h1:EQ1OkiNq/eMbQxs/2O/A8VDIHERXGH14s19ednd4XIw=
-github.com/yuin/goldmark v1.4.6/go.mod h1:rmuwmfZ0+bvzB24eSC//bk1R1Zp3hM0OXYv/G2LIilg=
-gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405 h1:yhCVgyC4o1eVCa2tZl7eS0r+SDo693bJlVdllGtEeKM=
-gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=
-gopkg.in/yaml.v2 v2.3.0 h1:clyUAQHOM3G0M3f5vQj7LuJrETvjVot3Z5el9nffUtU=
-gopkg.in/yaml.v2 v2.3.0/go.mod h1:hI93XBmqTisBFMUTm0b8Fm+jr3Dg1NNxqwp+5A1VGuI=
+github.com/yuin/goldmark/v2 v2.0.0-beta.4 h1:rneB/Z3BLnRlZH14L1PlY6yoAcZOoICLCJhXUbnZduU=
+github.com/yuin/goldmark/v2 v2.0.0-beta.4/go.mod h1:ECCrFa2/3BDKY8uhRlgPZA1NdJBEvjkCJsKUWHvYnhw=
+github.com/yuin/goldmark/v2 v2.0.0-beta.5 h1:IOyGIdkgU4oSCFA+qaei8ct8ECajxUMcvUsgKDI4pyg=
+github.com/yuin/goldmark/v2 v2.0.0-beta.5/go.mod h1:lSX/kxc086wZlaQYnSrf7GGqRnFsP6Bm6cWQKVmOuqs=
+go.yaml.in/yaml/v4 v4.0.0-rc.6 h1:1h7H1ohdUh93/FyE4YaDa1Zh64K6VVbjF4K6WUxMtH4=
+go.yaml.in/yaml/v4 v4.0.0-rc.6/go.mod h1:aZqd9kCMsGL7AuUv/m/PvWLdg5sjJsZ4oHDEnfPPfY0=

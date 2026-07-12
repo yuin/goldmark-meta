@@ -2,8 +2,8 @@ goldmark-meta
 =========================
 [![GoDev][godev-image]][godev-url]
 
-[godev-image]: https://pkg.go.dev/badge/github.com/yuin/goldmark-meta
-[godev-url]: https://pkg.go.dev/github.com/yuin/goldmark-meta
+[godev-image]: https://pkg.go.dev/badge/github.com/yuin/goldmark-meta/v2
+[godev-url]: https://pkg.go.dev/github.com/yuin/goldmark-meta/v2
 
 
 goldmark-meta is an extension for the [goldmark](http://github.com/yuin/goldmark) 
@@ -11,11 +11,13 @@ that allows you to define document metadata in YAML format.
 
 Usage
 --------------------
+### Compatiblity
+goldmark-meta/v2 is compatible with goldmark/v2.
 
 ### Installation
 
 ```
-go get github.com/yuin/goldmark-meta
+go get github.com/yuin/goldmark-meta/v2
 ```
 
 ### Markdown syntax
@@ -26,7 +28,7 @@ as a child.
 YAML metadata must start with a **YAML metadata separator**.
 This separator must be at first line of the document.
 
-A **YAML metadata separator** is a line that only `-` is repeated.
+A **YAML metadata separator** is a line that only `---`.
 
 YAML metadata must end with a **YAML metadata separator**.
 
@@ -52,74 +54,28 @@ Tags:
 
 ```go
 import (
-    "bytes"
     "fmt"
-    "github.com/yuin/goldmark"
-    "github.com/yuin/goldmark/extension"
-    "github.com/yuin/goldmark/parser"
-    "github.com/yuin/goldmark-meta"
+    "github.com/yuin/goldmark/v2/parser"
+    "github.com/yuin/goldmark/v2/ast"
+    "github.com/yuin/goldmark-meta/v2"
 )
 
 func main() {
-    markdown := goldmark.New(
-        goldmark.WithExtensions(
-            meta.Meta,
-        ),
-    )
-    source := `---
+	source := []byte(`---
 Title: goldmark-meta
 Summary: Add YAML metadata to the document
 Tags:
     - markdown
     - goldmark
 ---
+`)
 
-# Hello goldmark-meta
-`
-
-    var buf bytes.Buffer
-    context := parser.NewContext()
-    if err := markdown.Convert([]byte(source), &buf, parser.WithContext(context)); err != nil {
-        panic(err)
-    }
-    metaData := meta.Get(context)
-    title := metaData["Title"]
-    fmt.Print(title)
-}
-```
-
-Or `WithStoresInDocument` option:
-
-```go
-import (
-    "bytes"
-    "fmt"
-    "github.com/yuin/goldmark"
-    "github.com/yuin/goldmark/extension"
-    "github.com/yuin/goldmark/parser"
-    "github.com/yuin/goldmark/text"
-    "github.com/yuin/goldmark-meta"
-)
-
-func main() {
-	markdown := goldmark.New(
-		goldmark.WithExtensions(
-			meta.New(
-				meta.WithStoresInDocument(),
-			),
+	document := parser.New(
+		parser.WithExtensions(
+			meta.Parser,
 		),
-	)
-	source := `---
-Title: goldmark-meta
-Summary: Add YAML metadata to the document
-Tags:
-    - markdown
-    - goldmark
----
-`
-
-	document := markdown.Parser().Parse(text.NewReader([]byte(source)))
-	metaData := document.OwnerDocument().Meta()
+	).ParseBytes(source)
+	metaData := document.(*ast.Document).Metadata()
 	title := metaData["Title"]
 	fmt.Print(title)
 }
@@ -127,40 +83,19 @@ Tags:
 
 ### Render the metadata as a table
 
-You need to add `extension.TableHTMLRenderer` or the `Table` extension to
-render metadata as a table.
+Use `meta.WithTable()` on the HTML renderer extension:
 
 ```go
 import (
     "bytes"
     "fmt"
-    "github.com/yuin/goldmark"
-    "github.com/yuin/goldmark/extension"
-    "github.com/yuin/goldmark/parser"
-    "github.com/yuin/goldmark/renderer"
-    "github.com/yuin/goldmark/util"
-    "github.com/yuin/goldmark-meta"
+    "github.com/yuin/goldmark/v2/parser"
+    "github.com/yuin/goldmark/v2/renderer/html"
+    "github.com/yuin/goldmark-meta/v2"
 )
 
 func main() {
-    markdown := goldmark.New(
-        goldmark.WithExtensions(
-            meta.New(meta.WithTable()),
-        ),
-        goldmark.WithRendererOptions(
-            renderer.WithNodeRenderers(
-                util.Prioritized(extension.NewTableHTMLRenderer(), 500),
-            ),
-        ),
-    )
-    // OR
-    // markdown := goldmark.New(
-    //     goldmark.WithExtensions(
-    //         meta.New(meta.WithTable()),
-    //         extension.Table,
-    //     ),
-    // )
-    source := `---
+    source := []byte(`---
 Title: goldmark-meta
 Summary: Add YAML metadata to the document
 Tags:
@@ -169,10 +104,21 @@ Tags:
 ---
 
 # Hello goldmark-meta
-`
+`)
+    p := parser.New(
+        parser.WithExtensions(
+            meta.Parser,
+        ),
+    )
+    r := html.New(
+        html.WithExtensions(
+            meta.NewHTMLRenderer(meta.WithTable()),
+        ),
+    )
+    document := p.ParseBytes(source)
 
     var buf bytes.Buffer
-    if err := markdown.Convert([]byte(source), &buf); err != nil {
+    if err := r.Render(&buf, source, document); err != nil {
         panic(err)
     }
     fmt.Print(buf.String())

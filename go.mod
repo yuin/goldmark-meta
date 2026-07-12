@@ -1,8 +1,8 @@
-module github.com/yuin/goldmark-meta
+module github.com/yuin/goldmark-meta/v2
 
-go 1.17
+go 1.24
 
 require (
-	github.com/yuin/goldmark v1.4.6
-	gopkg.in/yaml.v2 v2.3.0
+	github.com/yuin/goldmark/v2 v2.0.0-beta.5
+	go.yaml.in/yaml/v4 v4.0.0-rc.6
 )
