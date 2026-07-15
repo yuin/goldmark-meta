@@ -11,6 +11,10 @@ that allows you to define document metadata in YAML format.
 
 Usage
 --------------------
+### Compatiblity
+github.com/yuin/goldmark-meta is compatible with goldmark(v1).
+
+use `github.com/yuin/goldmark-meta/v2` for goldmark(v2).
 
 ### Installation
 
