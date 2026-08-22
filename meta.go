@@ -32,7 +32,7 @@ type MetaBlock struct {
 // Dump implements Node.Dump.
 func (n *MetaBlock) Dump(source []byte) *ast.NodeDump {
 	return ast.NewNodeDump(n, map[string]any{
-		"Value": string(n.Value.Bytes(source)),
+		"Value": n.Value,
 	})
 }
 
@@ -189,7 +189,6 @@ func WithTable(opts ...TableOption) HTMLRendererOption {
 
 type metaHTMLRenderer struct {
 	config htmlRendererConfig
-	writer html.Writer
 }
 
 // Parser is a parser extension for goldmark.
@@ -215,9 +214,8 @@ func (e *parserExt) ParserOptions(_ *parser.Config) []parser.Option {
 	}
 }
 
-func (r *metaHTMLRenderer) RendererOptions(cfg *html.Config) []html.Option {
+func (r *metaHTMLRenderer) RendererOptions(_ *html.Config) []html.Option {
 	var opts []html.Option
-	r.writer = cfg.Writer()
 	opts = append(opts, html.WithNodeRenderer(KindMetaBlock, html.NodeRendererFunc(r.renderMetaBlock)))
 	return opts
 }
@@ -225,6 +223,8 @@ func (r *metaHTMLRenderer) RendererOptions(cfg *html.Config) []html.Option {
 func (r *metaHTMLRenderer) renderMetaBlock(writer io.Writer, source []byte, n ast.Node, entering bool, rc renderer.Context) (ast.WalkStatus, error) {
 	if entering {
 		w := writer.(util.BufWriter)
+		tw := html.ContextTextWriter(rc)
+		hw := html.ContextHTMLWriter(rc)
 		d := &n.(*MetaBlock).data
 		if d.Error != nil {
 			_, _ = fmt.Fprintf(w, "<!-- %v -->\n", d.Error)
@@ -242,13 +242,13 @@ func (r *metaHTMLRenderer) renderMetaBlock(writer io.Writer, source []byte, n as
 				_, _ = w.WriteString("<table>\n<thead>\n<tr>\n")
 				for _, key := range keys {
 					_, _ = w.WriteString("<th>")
-					r.writer.WriteText(w, fmt.Append(nil, key))
+					_, _ = tw.Write(fmt.Append(nil, key))
 					_, _ = w.WriteString("</th>\n")
 				}
 				_, _ = w.WriteString("</tr>\n</thead>\n<tbody>\n<tr>\n")
 				for _, key := range keys {
 					_, _ = w.WriteString("<td>")
-					r.writer.WriteHTML(w, []byte(valueToHTML(d.Map[key])))
+					_, _ = hw.Write(valueToHTML(d.Map[key]))
 					_, _ = w.WriteString("</td>\n")
 				}
 				_, _ = w.WriteString("</tr>\n</tbody>\n</table>\n")
@@ -256,9 +256,9 @@ func (r *metaHTMLRenderer) renderMetaBlock(writer io.Writer, source []byte, n as
 				_, _ = w.WriteString("<table>\n<tbody>\n")
 				for _, key := range keys {
 					_, _ = w.WriteString("<tr>\n<td>")
-					r.writer.WriteText(w, fmt.Append(nil, key))
+					_, _ = tw.Write(fmt.Append(nil, key))
 					_, _ = w.WriteString("</td>\n<td>")
-					r.writer.WriteHTML(w, []byte(valueToHTML(d.Map[key])))
+					_, _ = hw.Write(valueToHTML(d.Map[key]))
 					_, _ = w.WriteString("</td>\n</tr>\n")
 				}
 				_, _ = w.WriteString("</tbody>\n</table>\n")
