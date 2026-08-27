@@ -8,5 +8,7 @@ github.com/yuin/goldmark/v2 v2.0.0-beta.9 h1:lk45BdPcqUYyhNM3z1QvLkF+nwJ4Z6NVbQ2
 github.com/yuin/goldmark/v2 v2.0.0-beta.9/go.mod h1:lSX/kxc086wZlaQYnSrf7GGqRnFsP6Bm6cWQKVmOuqs=
 github.com/yuin/goldmark/v2 v2.0.0-rc.1 h1:7BZTUERDJ+qguGRb8jTq9Myto7UeQzMMNCCx2PMGjD0=
 github.com/yuin/goldmark/v2 v2.0.0-rc.1/go.mod h1:G6M4/qOFtfn01/o14BU1UR2Lo5N3S9Qo7xCuz/sHjGQ=
+github.com/yuin/goldmark/v2 v2.0.0 h1:P6JP1Px30eqo339He8dDFE8D0BSM21eQcbozLWH+E6g=
+github.com/yuin/goldmark/v2 v2.0.0/go.mod h1:G6M4/qOFtfn01/o14BU1UR2Lo5N3S9Qo7xCuz/sHjGQ=
 go.yaml.in/yaml/v4 v4.0.0-rc.6 h1:1h7H1ohdUh93/FyE4YaDa1Zh64K6VVbjF4K6WUxMtH4=
 go.yaml.in/yaml/v4 v4.0.0-rc.6/go.mod h1:aZqd9kCMsGL7AuUv/m/PvWLdg5sjJsZ4oHDEnfPPfY0=
