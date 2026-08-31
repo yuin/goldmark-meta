@@ -74,7 +74,7 @@ Tags:
 		parser.WithExtensions(
 			meta.Parser,
 		),
-	).ParseBytes(source)
+	).Parse(source)
 	metaData := document.(*ast.Document).Metadata()
 	title := metaData["Title"]
 	fmt.Print(title)
@@ -115,7 +115,7 @@ Tags:
             meta.NewHTMLRenderer(meta.WithTable()),
         ),
     )
-    document := p.ParseBytes(source)
+    document := p.Parse(source)
 
     var buf bytes.Buffer
     if err := r.Render(&buf, source, document); err != nil {
