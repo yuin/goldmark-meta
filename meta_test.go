@@ -1,9 +1,10 @@
-package meta
+package meta_test
 
 import (
 	"bytes"
 	"testing"
 
+	meta "github.com/yuin/goldmark-meta/v2"
 	"github.com/yuin/goldmark/v2/ast"
 	"github.com/yuin/goldmark/v2/parser"
 	"github.com/yuin/goldmark/v2/renderer/html"
@@ -13,9 +14,9 @@ func parseAndRender(t *testing.T, source string, rendererExts ...html.Extension)
 	t.Helper()
 
 	sourceBytes := []byte(source)
-	p := parser.New(parser.WithExtensions(Parser))
+	p := parser.New(parser.WithExtensions(meta.NewParser()))
 	document := p.Parse(sourceBytes).OwnerDocument()
-	r := html.New(html.WithExtensions(append([]html.Extension{NewHTMLRenderer()}, rendererExts...)...))
+	r := html.New(html.WithExtensions(append([]html.Extension{meta.NewHTMLRenderer()}, rendererExts...)...))
 
 	var buf bytes.Buffer
 	if err := r.Render(&buf, sourceBytes, document); err != nil {
@@ -76,7 +77,7 @@ Tags:
 # Hello goldmark-meta
 `
 
-	_, output := parseAndRender(t, source, NewHTMLRenderer(WithTable()))
+	_, output := parseAndRender(t, source, meta.NewHTMLRenderer(meta.WithTable()))
 	if output != `<table>
 <thead>
 <tr>
@@ -144,7 +145,7 @@ Tags:
 # Hello goldmark-meta
 `
 
-	_, output := parseAndRender(t, source, NewHTMLRenderer(WithTable()))
+	_, output := parseAndRender(t, source, meta.NewHTMLRenderer(meta.WithTable()))
 	if output != `<table>
 <thead>
 <tr>
@@ -180,7 +181,7 @@ Tags:
 	sourceBytes := []byte(source)
 	document := parser.New(
 		parser.WithExtensions(
-			Parser,
+			meta.NewParser(),
 		),
 	).Parse(sourceBytes).OwnerDocument()
 	metaData := document.Metadata()
@@ -219,7 +220,7 @@ Tags:
 # Hello goldmark-meta
 `
 
-	_, output := parseAndRender(t, source, NewHTMLRenderer(WithTable(WithLayout(TableLayoutColumns))))
+	_, output := parseAndRender(t, source, meta.NewHTMLRenderer(meta.WithTable(meta.WithLayout(meta.TableLayoutColumns))))
 	if output != `<table>
 <thead>
 <tr>
@@ -241,7 +242,7 @@ Tags:
 		t.Error("invalid table output")
 	}
 
-	_, output = parseAndRender(t, source, NewHTMLRenderer(WithTable(WithLayout(TableLayoutRows))))
+	_, output = parseAndRender(t, source, meta.NewHTMLRenderer(meta.WithTable(meta.WithLayout(meta.TableLayoutRows))))
 	if output != `<table>
 <tbody>
 <tr>

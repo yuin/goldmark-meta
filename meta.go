@@ -62,12 +62,7 @@ var contextKey = parser.NewContextKey()
 
 type blockParser struct{}
 
-var defaultBlockParser = &blockParser{}
-
-// NewParser returns a BlockParser that can parse YAML metadata blocks.
-func NewParser() parser.BlockParser {
-	return defaultBlockParser
-}
+var defaultBlockParser parser.BlockParser = &blockParser{}
 
 func isSeparator(line []byte) bool {
 	line = util.TrimRightSpace(util.TrimLeftSpace(line))
@@ -142,6 +137,16 @@ func (b *blockParser) CanAcceptIndentedLine() bool {
 
 type parserExt struct{}
 
+// NewParser returns a meta block parser.
+func NewParser() parser.Extension {
+	return &parserExt{}
+}
+
+// Parser is a parser extension for goldmark.
+//
+// Deprecated: use [NewParser] instead.
+var Parser = &parserExt{}
+
 type htmlRendererConfig struct {
 	Table *tableConfig
 }
@@ -191,10 +196,9 @@ type metaHTMLRenderer struct {
 	config htmlRendererConfig
 }
 
-// Parser is a parser extension for goldmark.
-var Parser = &parserExt{}
-
 // HTMLRenderer is the default HTML renderer extension for metadata blocks.
+//
+// Deprecated: use [NewHTMLRenderer] instead.
 var HTMLRenderer = NewHTMLRenderer()
 
 // NewHTMLRenderer returns a new HTML renderer extension.
@@ -209,7 +213,7 @@ func NewHTMLRenderer(opts ...HTMLRendererOption) html.Extension {
 func (e *parserExt) ParserOptions(_ *parser.Config) []parser.Option {
 	return []parser.Option{
 		parser.WithBlockParsers(
-			util.Prioritized(NewParser(), 0),
+			util.Prioritized(defaultBlockParser, 0),
 		),
 	}
 }

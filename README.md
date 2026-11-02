@@ -72,7 +72,7 @@ Tags:
 
 	document := parser.New(
 		parser.WithExtensions(
-			meta.Parser,
+			meta.NewParser(),
 		),
 	).Parse(source)
 	metaData := document.(*ast.Document).Metadata()
@@ -107,7 +107,7 @@ Tags:
 `)
     p := parser.New(
         parser.WithExtensions(
-            meta.Parser,
+            meta.NewParser(),
         ),
     )
     r := html.New(
